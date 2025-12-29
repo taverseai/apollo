@@ -4,7 +4,7 @@ Utility functions for the LightRAG API.
 
 import os
 import argparse
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, TYPE_CHECKING
 import sys
 from ascii_colors import ASCIIColors
 from lightrag.api import __api_version__ as api_version
@@ -12,11 +12,16 @@ from lightrag import __version__ as core_version
 from lightrag.constants import (
     DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE,
 )
-from fastapi import HTTPException, Security, Request, status
+from fastapi import HTTPException, Security, Request, status, Depends, Header
 from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from starlette.status import HTTP_403_FORBIDDEN
 from .auth import auth_handler
 from .config import ollama_server_infos, global_args, get_env_value
+
+if TYPE_CHECKING:
+    from lightrag import LightRAG
+    from .routers.document_routes import DocumentManager
+    from .workspace_manager import WorkspaceInstance
 
 
 def check_env_file():
@@ -340,3 +345,160 @@ def display_splash_screen(args: argparse.Namespace) -> None:
 
     # Ensure splash output flush to system log
     sys.stdout.flush()
+
+
+# =============================================================================
+# Workspace Dependency Injection for Multi-Tenant Support
+# =============================================================================
+
+WORKSPACE_HEADER_NAME = "LIGHTRAG-WORKSPACE"
+
+
+def get_workspace_from_header(
+    lightrag_workspace: Optional[str] = Header(
+        default=None,
+        alias=WORKSPACE_HEADER_NAME,
+        description="Workspace identifier for multi-tenant data isolation. "
+        "Each workspace has its own isolated documents and knowledge graph.",
+    )
+) -> Optional[str]:
+    """
+    Extract workspace identifier from request header.
+
+    This is a FastAPI dependency that extracts the workspace from the
+    LIGHTRAG-WORKSPACE header. If not provided, returns None which will
+    cause the system to use the default workspace.
+
+    Args:
+        lightrag_workspace: The workspace header value
+
+    Returns:
+        Workspace identifier string or None
+    """
+    if lightrag_workspace:
+        return lightrag_workspace.strip()
+    return None
+
+
+async def get_workspace_rag(
+    workspace: Optional[str] = Depends(get_workspace_from_header),
+) -> "LightRAG":
+    """
+    FastAPI dependency to get LightRAG instance for the specified workspace.
+
+    This dependency should be used in route handlers to get the appropriate
+    LightRAG instance for the current request's workspace.
+
+    Usage:
+        @router.post("/query")
+        async def query(rag: LightRAG = Depends(get_workspace_rag)):
+            return await rag.aquery(...)
+
+    Args:
+        workspace: Workspace identifier from header
+
+    Returns:
+        LightRAG instance for the workspace
+
+    Raises:
+        HTTPException: If WorkspaceManager is not initialized
+    """
+    from .workspace_manager import get_workspace_manager
+
+    try:
+        manager = get_workspace_manager()
+        instance = await manager.get_instance(workspace)
+        return instance.rag
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Workspace manager not initialized: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get LightRAG instance for workspace: {str(e)}"
+        )
+
+
+async def get_workspace_doc_manager(
+    workspace: Optional[str] = Depends(get_workspace_from_header),
+) -> "DocumentManager":
+    """
+    FastAPI dependency to get DocumentManager for the specified workspace.
+
+    This dependency should be used in document route handlers to get the
+    appropriate DocumentManager for the current request's workspace.
+
+    Usage:
+        @router.post("/documents/upload")
+        async def upload(doc_manager: DocumentManager = Depends(get_workspace_doc_manager)):
+            return doc_manager.upload(...)
+
+    Args:
+        workspace: Workspace identifier from header
+
+    Returns:
+        DocumentManager for the workspace
+
+    Raises:
+        HTTPException: If WorkspaceManager is not initialized
+    """
+    from .workspace_manager import get_workspace_manager
+
+    try:
+        manager = get_workspace_manager()
+        instance = await manager.get_instance(workspace)
+        return instance.doc_manager
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Workspace manager not initialized: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get DocumentManager for workspace: {str(e)}"
+        )
+
+
+async def get_workspace_instance(
+    workspace: Optional[str] = Depends(get_workspace_from_header),
+) -> "WorkspaceInstance":
+    """
+    FastAPI dependency to get both LightRAG and DocumentManager for a workspace.
+
+    This dependency returns the complete WorkspaceInstance containing both
+    the LightRAG instance and DocumentManager for the workspace.
+
+    Usage:
+        @router.post("/documents/scan")
+        async def scan(instance: WorkspaceInstance = Depends(get_workspace_instance)):
+            rag = instance.rag
+            doc_manager = instance.doc_manager
+            ...
+
+    Args:
+        workspace: Workspace identifier from header
+
+    Returns:
+        WorkspaceInstance containing rag and doc_manager
+
+    Raises:
+        HTTPException: If WorkspaceManager is not initialized
+    """
+    from .workspace_manager import get_workspace_manager
+
+    try:
+        manager = get_workspace_manager()
+        return await manager.get_instance(workspace)
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Workspace manager not initialized: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get workspace instance: {str(e)}"
+        )

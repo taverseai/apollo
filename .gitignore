@@ -69,6 +69,7 @@ download_models_hf.py
 
 # temporary test files in project root
 /test_*
+/test/*
 
 # Cline files
 memory-bank

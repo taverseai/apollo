@@ -64,6 +64,23 @@ from lightrag.kg.shared_storage import (
 from fastapi.security import OAuth2PasswordRequestForm
 from lightrag.api.auth import auth_handler
 
+# Multi-workspace support imports
+from lightrag.api.workspace_manager import (
+    WorkspaceManager,
+    WorkspaceConfig,
+    set_workspace_manager,
+    get_workspace_manager,
+)
+from lightrag.api.routers.multiworkspace_query_routes import (
+    create_multiworkspace_query_routes,
+)
+from lightrag.api.routers.multiworkspace_document_routes import (
+    create_multiworkspace_document_routes,
+)
+from lightrag.api.routers.multiworkspace_graph_routes import (
+    create_multiworkspace_graph_routes,
+)
+
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance
 # the OS environment variables take precedence over the .env file
@@ -310,7 +327,7 @@ def create_app(args):
         "gemini",
     ]:
         raise Exception("llm binding not supported")
-
+    print(f"Embedding binding: {args.embedding_binding}")
     if args.embedding_binding not in [
         "lollms",
         "ollama",
@@ -1098,6 +1115,79 @@ def create_app(args):
     # Add Ollama API routes
     ollama_api = OllamaAPI(rag, top_k=args.top_k, api_key=api_key)
     app.include_router(ollama_api.router, prefix="/api")
+
+    # ==========================================================================
+    # Multi-Workspace Support - Routes under /v2 prefix
+    # ==========================================================================
+    # These routes support dynamic workspace switching via LIGHTRAG-WORKSPACE header
+    # for multi-tenant deployments where each user has isolated data.
+    #
+    # Usage: Set the 'LIGHTRAG-WORKSPACE: user_123' header to access user_123's data
+    # ==========================================================================
+
+    # Initialize WorkspaceManager for multi-tenant support
+    try:
+        workspace_config = WorkspaceConfig(
+            working_dir=args.working_dir,
+            llm_model_func=create_llm_model_func(args.llm_binding),
+            llm_model_name=args.llm_model,
+            llm_model_max_async=args.max_async,
+            summary_max_tokens=args.summary_max_tokens,
+            summary_context_size=args.summary_context_size,
+            chunk_token_size=int(args.chunk_size),
+            chunk_overlap_token_size=int(args.chunk_overlap_size),
+            llm_model_kwargs=create_llm_model_kwargs(args.llm_binding, args, llm_timeout),
+            embedding_func=embedding_func,
+            default_llm_timeout=llm_timeout,
+            default_embedding_timeout=embedding_timeout,
+            kv_storage=args.kv_storage,
+            graph_storage=args.graph_storage,
+            vector_storage=args.vector_storage,
+            doc_status_storage=args.doc_status_storage,
+            vector_db_storage_cls_kwargs={"cosine_better_than_threshold": args.cosine_threshold},
+            enable_llm_cache_for_entity_extract=args.enable_llm_cache_for_extract,
+            enable_llm_cache=args.enable_llm_cache,
+            rerank_model_func=rerank_model_func,
+            max_parallel_insert=args.max_parallel_insert,
+            max_graph_nodes=args.max_graph_nodes,
+            addon_params={
+                "language": args.summary_language,
+                "entity_types": args.entity_types,
+            },
+            ollama_server_infos=ollama_server_infos,
+            input_dir=args.input_dir,
+        )
+
+        workspace_manager = WorkspaceManager(
+            config=workspace_config,
+            default_workspace=args.workspace,
+        )
+        set_workspace_manager(workspace_manager)
+
+        logger.info("Multi-workspace support enabled. Use /v2/* endpoints with LIGHTRAG-WORKSPACE header.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize WorkspaceManager: {e}. Multi-workspace routes will not be available.")
+
+    # Add multi-workspace routes under /v2 prefix
+    try:
+        app.include_router(
+            create_multiworkspace_query_routes(api_key, args.top_k),
+            prefix="/v2",
+            tags=["v2-query"],
+        )
+        app.include_router(
+            create_multiworkspace_document_routes(api_key),
+            prefix="/v2",
+            tags=["v2-documents"],
+        )
+        app.include_router(
+            create_multiworkspace_graph_routes(api_key),
+            prefix="/v2",
+            tags=["v2-graph"],
+        )
+        logger.info("Multi-workspace routes registered at /v2/*")
+    except Exception as e:
+        logger.warning(f"Failed to register multi-workspace routes: {e}")
 
     # Custom Swagger UI endpoint for offline support
     @app.get("/docs", include_in_schema=False)

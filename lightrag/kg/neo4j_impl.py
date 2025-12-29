@@ -1223,6 +1223,10 @@ class Neo4JStorage(BaseGraphStorage):
 
                         # If record found, check node count
                         total_nodes = full_record["total_nodes"]
+                        
+                        # Handle None case - default to 0 if total_nodes is None
+                        if total_nodes is None:
+                            total_nodes = 0
 
                         if total_nodes <= max_nodes:
                             # If node count is within limit, use full result directly

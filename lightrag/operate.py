@@ -3614,13 +3614,18 @@ async def _apply_token_truncation(
     max_entity_tokens = getattr(
         query_param,
         "max_entity_tokens",
-        global_config.get("max_entity_tokens", DEFAULT_MAX_ENTITY_TOKENS),
+        None,
     )
+    if max_entity_tokens is None:
+        max_entity_tokens = global_config.get("max_entity_tokens") or DEFAULT_MAX_ENTITY_TOKENS
+    
     max_relation_tokens = getattr(
         query_param,
         "max_relation_tokens",
-        global_config.get("max_relation_tokens", DEFAULT_MAX_RELATION_TOKENS),
+        None,
     )
+    if max_relation_tokens is None:
+        max_relation_tokens = global_config.get("max_relation_tokens") or DEFAULT_MAX_RELATION_TOKENS
 
     final_entities = search_result["final_entities"]
     final_relations = search_result["final_relations"]
@@ -3897,8 +3902,10 @@ async def _build_context_str(
     max_total_tokens = getattr(
         query_param,
         "max_total_tokens",
-        global_config.get("max_total_tokens", DEFAULT_MAX_TOTAL_TOKENS),
+        None,
     )
+    if max_total_tokens is None:
+        max_total_tokens = global_config.get("max_total_tokens") or DEFAULT_MAX_TOTAL_TOKENS
 
     # Get the system prompt template from PROMPTS or global_config
     sys_prompt_template = global_config.get(
@@ -4811,8 +4818,10 @@ async def naive_query(
     max_total_tokens = getattr(
         query_param,
         "max_total_tokens",
-        global_config.get("max_total_tokens", DEFAULT_MAX_TOTAL_TOKENS),
+        None,
     )
+    if max_total_tokens is None:
+        max_total_tokens = global_config.get("max_total_tokens") or DEFAULT_MAX_TOTAL_TOKENS
 
     # Calculate system prompt template tokens (excluding content_data)
     user_prompt = f"\n\n{query_param.user_prompt}" if query_param.user_prompt else "n/a"
