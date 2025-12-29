@@ -354,21 +354,19 @@ def create_multiworkspace_document_routes(api_key: Optional[str] = None):
                     detail=f"Document '{document_id}' not found",
                 )
 
-            doc_status = doc_data.get("status", {})
+            status_value = doc_data.get("status", "unknown")
+            if hasattr(status_value, "value"):
+                status_value = status_value.value
 
             return DocumentInfo(
                 id=document_id,
-                file_path=doc_status.file_path if hasattr(doc_status, "file_path") else None,
-                status=doc_status.status.value if hasattr(doc_status, "status") else "unknown",
-                created_at=format_datetime(
-                    doc_status.created_at if hasattr(doc_status, "created_at") else None
-                ),
-                updated_at=format_datetime(
-                    doc_status.updated_at if hasattr(doc_status, "updated_at") else None
-                ),
-                chunk_count=doc_status.chunks_count if hasattr(doc_status, "chunks_count") else None,
-                error=doc_status.error_message if hasattr(doc_status, "error_message") else None,
-                metadata=doc_status.metadata if hasattr(doc_status, "metadata") else None,
+                file_path=doc_data.get("file_path"),
+                status=status_value,
+                created_at=format_datetime(doc_data.get("created_at")),
+                updated_at=format_datetime(doc_data.get("updated_at")),
+                chunk_count=doc_data.get("chunks_count"),
+                error=doc_data.get("error_msg"),
+                metadata=doc_data.get("metadata"),
             )
         except HTTPException:
             raise
