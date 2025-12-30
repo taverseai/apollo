@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover'
 import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select'
 import { useSettingsStore } from '@/stores/settings'
 import { PaletteIcon } from 'lucide-react'
@@ -21,6 +22,9 @@ export default function AppSettings({ className }: AppSettingsProps) {
   const theme = useSettingsStore.use.theme()
   const setTheme = useSettingsStore.use.setTheme()
 
+  const workspace = useSettingsStore.use.workspace()
+  const setWorkspace = useSettingsStore.use.setWorkspace()
+
   const handleLanguageChange = useCallback((value: string) => {
     setLanguage(value as 'en' | 'zh' | 'fr' | 'ar' | 'zh_TW')
   }, [setLanguage])
@@ -28,6 +32,10 @@ export default function AppSettings({ className }: AppSettingsProps) {
   const handleThemeChange = useCallback((value: string) => {
     setTheme(value as 'light' | 'dark' | 'system')
   }, [setTheme])
+
+  const handleWorkspaceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setWorkspace(e.target.value)
+  }, [setWorkspace])
 
   return (
     <Popover open={opened} onOpenChange={setOpened}>
@@ -38,6 +46,15 @@ export default function AppSettings({ className }: AppSettingsProps) {
       </PopoverTrigger>
       <PopoverContent side="bottom" align="end" className="w-56">
         <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium">{t('settings.workspace')}</label>
+            <Input
+              value={workspace}
+              onChange={handleWorkspaceChange}
+              placeholder={t('settings.workspacePlaceholder')}
+            />
+          </div>
+
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium">{t('settings.language')}</label>
             <Select value={language} onValueChange={handleLanguageChange}>

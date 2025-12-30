@@ -9,6 +9,10 @@ type Language = 'en' | 'zh' | 'fr' | 'ar' | 'zh_TW'
 type Tab = 'documents' | 'knowledge-graph' | 'retrieval' | 'api'
 
 interface SettingsState {
+  // Workspace settings (Multi-tenant)
+  workspace: string
+  setWorkspace: (workspace: string) => void
+
   // Document manager settings
   showFileName: boolean
   setShowFileName: (show: boolean) => void
@@ -87,6 +91,7 @@ interface SettingsState {
 const useSettingsStoreBase = create<SettingsState>()(
   persist(
     (set) => ({
+      workspace: '',
       theme: 'system',
       language: 'en',
       showPropertyPanel: true,
@@ -135,6 +140,8 @@ const useSettingsStoreBase = create<SettingsState>()(
         user_prompt: '',
         enable_rerank: true
       },
+
+      setWorkspace: (workspace: string) => set({ workspace }),
 
       setTheme: (theme: Theme) => set({ theme }),
 
@@ -238,7 +245,7 @@ const useSettingsStoreBase = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 19,
+      version: 20,
       migrate: (state: any, version: number) => {
         if (version < 2) {
           state.showEdgeLabel = false
@@ -340,6 +347,10 @@ const useSettingsStoreBase = create<SettingsState>()(
           if (state.querySettings) {
             delete state.querySettings.response_type
           }
+        }
+        if (version < 20) {
+          // Add workspace field for multi-tenant support
+          state.workspace = ''
         }
         return state
       }

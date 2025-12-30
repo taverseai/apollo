@@ -60,6 +60,7 @@ from lightrag.kg.shared_storage import (
     # set_default_workspace,
     cleanup_keyed_lock,
     finalize_share_data,
+    initialize_pipeline_status,
 )
 from fastapi.security import OAuth2PasswordRequestForm
 from lightrag.api.auth import auth_handler
@@ -80,6 +81,7 @@ from lightrag.api.routers.multiworkspace_document_routes import (
 from lightrag.api.routers.multiworkspace_graph_routes import (
     create_multiworkspace_graph_routes,
 )
+from lightrag.exceptions import PipelineNotInitializedError
 
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance
@@ -1321,9 +1323,18 @@ def create_app(args):
             default_workspace = get_default_workspace()
             if workspace is None:
                 workspace = default_workspace
-            pipeline_status = await get_namespace_data(
-                "pipeline_status", workspace=workspace
-            )
+
+            # Try to get pipeline status, initialize if workspace doesn't exist yet
+            try:
+                pipeline_status = await get_namespace_data(
+                    "pipeline_status", workspace=workspace
+                )
+            except PipelineNotInitializedError:
+                # Workspace not initialized yet, initialize pipeline_status for this workspace
+                await initialize_pipeline_status(workspace=workspace)
+                pipeline_status = await get_namespace_data(
+                    "pipeline_status", workspace=workspace
+                )
 
             if not auth_configured:
                 auth_mode = "disabled"

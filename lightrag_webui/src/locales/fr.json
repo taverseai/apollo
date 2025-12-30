@@ -1,5 +1,7 @@
 {
   "settings": {
+    "workspace": "Espace de travail",
+    "workspacePlaceholder": "Espace de travail par défaut",
     "language": "Langue",
     "theme": "Thème",
     "light": "Clair",

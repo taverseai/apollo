@@ -25,6 +25,7 @@ site/
 *.logfire
 *.coverage/
 log/
+logs/
 
 # Caches
 .cache/

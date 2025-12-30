@@ -1,5 +1,7 @@
 {
   "settings": {
+    "workspace": "مساحة العمل",
+    "workspacePlaceholder": "مساحة العمل الافتراضية",
     "language": "اللغة",
     "theme": "السمة",
     "light": "فاتح",

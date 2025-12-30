@@ -7,6 +7,7 @@ switching via the LIGHTRAG-WORKSPACE header for multi-tenant deployments.
 
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+import asyncio
 import aiofiles
 
 from fastapi import (
@@ -31,6 +32,11 @@ from lightrag.api.workspace_manager import WorkspaceInstance
 from lightrag.api.routers.document_routes import (
     pipeline_enqueue_file,
     sanitize_filename,
+    DocumentsRequest,
+    PaginatedDocsResponse,
+    DocStatusResponse,
+    PaginationInfo,
+    format_datetime as format_datetime_v1,
 )
 
 
@@ -481,6 +487,86 @@ def create_multiworkspace_document_routes(api_key: Optional[str] = None):
             )
         except Exception as e:
             logger.error(f"Error clearing documents: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post(
+        "/paginated",
+        response_model=PaginatedDocsResponse,
+        dependencies=[Depends(combined_auth)],
+        summary="Get Paginated Documents with Multi-Workspace Support",
+        description="""
+        Get documents with pagination, filtering, and sorting for the workspace 
+        specified by the LIGHTRAG-WORKSPACE header.
+        
+        **Multi-Tenant Usage:**
+        - Set `LIGHTRAG-WORKSPACE: user_123` header to get user_123's documents
+        - Supports filtering by status, pagination, and sorting
+        """,
+    )
+    async def get_documents_paginated(
+        request: DocumentsRequest,
+        rag: LightRAG = Depends(get_workspace_rag),
+    ) -> PaginatedDocsResponse:
+        """
+        Get documents with pagination support for the user's workspace.
+        """
+        try:
+            # Get paginated documents and status counts in parallel
+            docs_task = rag.doc_status.get_docs_paginated(
+                status_filter=request.status_filter,
+                page=request.page,
+                page_size=request.page_size,
+                sort_field=request.sort_field,
+                sort_direction=request.sort_direction,
+            )
+            status_counts_task = rag.doc_status.get_all_status_counts()
+
+            # Execute both queries in parallel
+            (documents_with_ids, total_count), status_counts = await asyncio.gather(
+                docs_task, status_counts_task
+            )
+
+            # Convert documents to response format
+            doc_responses = []
+            for doc_id, doc in documents_with_ids:
+                doc_responses.append(
+                    DocStatusResponse(
+                        id=doc_id,
+                        content_summary=doc.content_summary,
+                        content_length=doc.content_length,
+                        status=doc.status,
+                        created_at=format_datetime_v1(doc.created_at),
+                        updated_at=format_datetime_v1(doc.updated_at),
+                        track_id=doc.track_id,
+                        chunks_count=doc.chunks_count,
+                        error_msg=doc.error_msg,
+                        metadata=doc.metadata,
+                        file_path=doc.file_path,
+                    )
+                )
+
+            # Calculate pagination info
+            total_pages = (total_count + request.page_size - 1) // request.page_size
+            has_next = request.page < total_pages
+            has_prev = request.page > 1
+
+            pagination = PaginationInfo(
+                page=request.page,
+                page_size=request.page_size,
+                total_count=total_count,
+                total_pages=total_pages,
+                has_next=has_next,
+                has_prev=has_prev,
+            )
+
+            return PaginatedDocsResponse(
+                documents=doc_responses,
+                pagination=pagination,
+                status_counts=status_counts,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting paginated documents: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
     return router

@@ -285,9 +285,10 @@ const axiosInstance = axios.create({
   }
 })
 
-// Interceptor: add api key and check authentication
+// Interceptor: add api key, workspace header, and check authentication
 axiosInstance.interceptors.request.use((config) => {
   const apiKey = useSettingsStore.getState().apiKey
+  const workspace = useSettingsStore.getState().workspace
   const token = localStorage.getItem('LIGHTRAG-API-TOKEN');
 
   // Always include token if it exists, regardless of path
@@ -296,6 +297,20 @@ axiosInstance.interceptors.request.use((config) => {
   }
   if (apiKey) {
     config.headers['X-API-Key'] = apiKey
+  }
+  // Add workspace header and rewrite URL for multi-tenant support
+  if (workspace) {
+    config.headers['LIGHTRAG-WORKSPACE'] = workspace
+    // Rewrite URLs to use v2 API endpoints for workspace-aware operations
+    // Only rewrite if not already using v2 and is a workspace-relevant endpoint
+    if (config.url && !config.url.startsWith('/v2/')) {
+      const workspaceAwareEndpoints = ['/documents', '/query', '/graph']
+      const shouldUseV2 = workspaceAwareEndpoints.some(ep => config.url?.startsWith(ep))
+      if (shouldUseV2) {
+        config.url = '/v2' + config.url
+        console.log(`[Workspace] Rewriting URL to: ${config.url} for workspace: ${workspace}`)
+      }
+    }
   }
   return config
 })

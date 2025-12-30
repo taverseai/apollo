@@ -1,5 +1,7 @@
 {
   "settings": {
+    "workspace": "工作區",
+    "workspacePlaceholder": "預設工作區",
     "language": "語言",
     "theme": "主題",
     "light": "淺色",
