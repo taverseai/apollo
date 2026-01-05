@@ -9,7 +9,7 @@ WORKDIR /app
 COPY lightrag_webui/ ./lightrag_webui/
 
 # Build frontend assets for inclusion in the API package
-RUN --mount=type=cache,id=s/8b4d45f1-d1b5-496c-95d3-cfbbfa05ef00-/root/.bun/install/cache,target=/root/.bun/install/cache \
+RUN --mount=type=cache,id=s/88e95939-0f51-46a7-a096-76fd06790fef-/root/.bun/install/cache,target=/root/.bun/install/cache \
     cd lightrag_webui \
     && bun install --frozen-lockfile \
     && bun run build
@@ -43,7 +43,7 @@ COPY setup.py .
 COPY uv.lock .
 
 # Install base, API, and offline extras without the project to improve caching
-RUN --mount=type=cache,id=s/8b4d45f1-d1b5-496c-95d3-cfbbfa05ef00-/root/.local/share/uv,target=/root/.local/share/uv \
+RUN --mount=type=cache,id=s/88e95939-0f51-46a7-a096-76fd06790fef-/root/.local/share/uv,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-install-project --no-editable
 
 # Copy project sources after dependency layer
@@ -53,7 +53,7 @@ COPY lightrag/ ./lightrag/
 COPY --from=frontend-builder /app/lightrag/api/webui ./lightrag/api/webui
 
 # Sync project in non-editable mode and ensure pip is available for runtime installs
-RUN --mount=type=cache,id=s/8b4d45f1-d1b5-496c-95d3-cfbbfa05ef00-/root/.local/share/uv,target=/root/.local/share/uv \
+RUN --mount=type=cache,id=s/88e95939-0f51-46a7-a096-76fd06790fef-/root/.local/share/uv,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-editable \
     && /app/.venv/bin/python -m ensurepip --upgrade
 
@@ -86,7 +86,7 @@ ENV PATH=/app/.venv/bin:/root/.local/bin:$PATH
 
 # Install dependencies with uv sync (uses locked versions from uv.lock)
 # And ensure pip is available for runtime installs
-RUN --mount=type=cache,id=s/8b4d45f1-d1b5-496c-95d3-cfbbfa05ef00-/root/.local/share/uv,target=/root/.local/share/uv \
+RUN --mount=type=cache,id=s/88e95939-0f51-46a7-a096-76fd06790fef-/root/.local/share/uv,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-editable \
     && /app/.venv/bin/python -m ensurepip --upgrade
 
